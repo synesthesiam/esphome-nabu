@@ -1,0 +1,269 @@
+esphome:
+  name: respeakerv3
+  friendly_name: ReSpeakerv3
+  platformio_options:
+    board_build.flash_mode: dio
+    board_build.mcu: esp32s3
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  framework:
+    type: esp-idf
+    version: recommended
+
+# esp32:
+#   board: esp32-s3-devkitc-1
+#   flash_size: 8MB
+#   variant: esp32s3
+#   framework:
+#     type: esp-idf
+#     version: recommended
+#     sdkconfig_options:
+#       CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240: "y"
+#       CONFIG_ESP32S3_DATA_CACHE_64KB: "y"
+#       CONFIG_ESP32S3_DATA_CACHE_LINE_64B: "y"
+#       CONFIG_ESP32_S3_BOX_BOARD: "y"
+
+
+logger:
+api:
+ota:
+  safe_mode: false
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+# packages:
+#   wifi: !include "../common/wifi.yaml"
+
+
+# improv_serial:
+
+# esp32_improv:
+#   authorizer: none
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+external_components:
+  # - source: github://synesthesiam/ESPHome_XIAO-ESP32S3
+  - source:
+      type: local
+      path: my_components_nabu
+
+
+# i2s_audio:
+#   - id: i2s_input
+#     i2s_lrclk_pin:
+#       number: GPIO7
+#       allow_other_uses: true
+#     i2s_bclk_pin:
+#       number: GPIO8
+#       allow_other_uses: true
+#     i2s_mclk_pin:
+#       number: GPIO9
+#       allow_other_uses: true
+#   - id: i2s_output
+#     i2s_lrclk_pin:
+#       number: GPIO7
+#       allow_other_uses: true
+#     i2s_bclk_pin:
+#       number: GPIO8
+#       allow_other_uses: true
+#     i2s_mclk_pin:
+#       number: GPIO9
+#       allow_other_uses: true
+
+# adf_pipeline:
+#   # create an I2SReader pipeline element
+#   # using the i2s_in configuration
+#   - platform: i2s_audio
+#     type: source
+#     id: adf_i2s_in
+#     i2s_audio_id: i2s_input
+#     i2s_din_pin: GPIO44
+#     channel: left
+#     sample_rate: 16000
+#     bits_per_sample: 32bit
+#   # create an I2SWriter pipeline element
+#   # using the i2s_out configuration
+#   - platform: i2s_audio
+#     type: sink
+#     id: adf_i2s_out
+#     i2s_audio_id: i2s_output
+#     i2s_dout_pin: GPIO043
+
+nabu:
+  i2s_lrclk_pin: GPIO7
+  i2s_bclk_pin: GPIO8
+  i2s_mclk_pin: GPIO9
+  i2s_din_pin: GPIO44
+  i2s_dout_pin: GPIO043
+
+microphone:
+  - platform: nabu
+    id: nabu_mic
+
+speaker:
+  - platform: nabu
+    id: nabu_speaker
+
+media_player:
+  - platform: nabu
+    id: nabu_media_player
+    name: nabu_media_player
+    internal: false
+    speaker: nabu_speaker
+
+# i2s_audio_xiao:
+#   i2s_lrclk_pin: GPIO7
+#   i2s_bclk_pin: GPIO8
+#   i2s_mclk_pin: GPIO9
+
+# microphone:
+#   - platform: i2s_audio_xiao
+#     id: xiao_mic
+#     adc_type: external
+#     i2s_din_pin: GPIO44
+#     pdm: false
+#     bits_per_sample: 32bit
+#     channel: left
+
+# media_player:
+  # - platform: adf_pipeline
+  #   id: music_media_player
+  #   name: s3-music_media_player
+  #   internal: false
+  #   pipeline:
+  #     # The media_player implementation implicitly
+  #     # creates a HTTPStreamReaderAndDecoder pipeline_element,
+  #     # which can be controlled using the media_player interface.
+  #     # It is added as the first element, as source to
+  #     # the pipeline
+  #     - self
+  #       # add the I2SWriter pipeline element as a sink.
+  #     - adf_i2s_out
+
+# speaker:
+#   - platform: i2s_audio_xiao
+#     id: xiao_speaker
+#     dac_type: external
+#     i2s_dout_pin:
+#       number: GPIO043
+#       allow_other_uses: true
+#     mode: stereo
+
+# debug:
+#   update_interval: 5s
+
+# udp_microphone:
+#   microphone: nabu_mic
+#   address: 192.168.68.75
+#   port: 5000
+
+micro_wake_word:
+  # model: https://raw.githubusercontent.com/kahrendt/microWakeWord/18-add-beta-alexa-model/models/betas/alexa_v2.json
+  model: okay_nabu
+  on_wake_word_detected:
+    # - media_player.play_media: 'http://homeserver.lan:8123/local/audio/alert_chime-16000.mp3'
+    # - wait_until:
+    #     media_player.is_idle:
+    - media_player.pause:
+        id: nabu_media_player
+    - voice_assistant.start:
+
+voice_assistant:
+  microphone: nabu_mic
+  # microphone: xiao_mic
+  use_wake_word: false
+  noise_suppression_level: 0
+  auto_gain: 0dBFS
+  volume_multiplier: 1
+  # media_player: nabu_media_player
+  speaker: nabu_speaker
+  id: assist
+  on_listening:
+    - light.turn_on:
+        id: led
+        effect: "Fast Breathing Light"
+        # effect: none
+  on_stt_vad_end:
+    - light.turn_on:
+        id: led
+        # effect: "Fast Breathing Light"
+        effect: none
+  on_tts_start:
+    - light.turn_on:
+        id: led
+        effect: none
+  on_end:
+    # - wait_until:
+    #     not:
+    #       voice_assistant.is_running:
+    - wait_until:
+        not:
+          speaker.is_playing:
+    # - wait_until:
+    #     media_player.is_idle:
+    #       id: tts_media_player
+    - micro_wake_word.start:
+    - light.turn_off:
+        id: led
+    - media_player.play:
+        id: nabu_media_player
+    # - script.execute: reset_led
+  on_error:
+    - light.turn_off:
+        id: led
+  on_client_connected:
+  # - media_player.play_media: 'http://homeserver.lan:8123/local/audio/wake-up-16000.mp3'
+  # - media_player.volume_set: 20%
+  # - wait_until:
+  #     media_player.is_idle:
+  - micro_wake_word.start:
+  on_client_disconnected:
+    - micro_wake_word.stop:
+    - voice_assistant.stop:
+
+light:
+  - platform: monochromatic
+    id: led
+    name: "Desk Lamp"
+    output: light_output
+    effects:
+      - pulse:
+          name: "Slow Breathing Light"
+          transition_length: 5s  # 缓慢呼吸灯，渐变时间较长
+      - pulse:
+          name: "Fast Breathing Light"
+          transition_length: 1s  # 快速呼吸灯，渐变时间较短
+
+output:
+  - platform: ledc
+    id: light_output
+    pin: GPIO21
+    inverted: true
+
+# switch:
+#   - platform: template
+#     name: Mute
+#     id: mute
+#     optimistic: true
+#     restore_mode: RESTORE_DEFAULT_ON
+#     entity_category: config
+#     on_turn_off:
+#       - micro_wake_word.start:
+#     on_turn_on:
+#       - micro_wake_word.stop:
+
+# sensor:
+#   - platform: debug
+#     free:
+#       name: "Heap Free"
+#     block:
+#       name: "Block Free"
+#     loop_time:
+#       name: "Loop Time"
