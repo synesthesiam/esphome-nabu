@@ -37,13 +37,6 @@ protected:
   // MediaPlayer implementation
   void control(const media_player::MediaPlayerCall &call) override;
 
-  // Pipeline implementations
-  // void on_pipeline_state_change(PipelineState state);
-
-  void mute_();
-  void unmute_();
-  void set_volume_(float volume, bool publish = true);
-
   bool muted_{false};
   bool play_intent_{false};
   optional<std::string> current_uri_{};
@@ -53,6 +46,8 @@ protected:
 
   speaker::Speaker *speaker_{nullptr};
   bool is_playing_ = false;
+  uint8_t *speaker_buffer_ = nullptr;
+  uint32_t next_buffer_time_ = 0;
 };
 
 } // namespace nabu

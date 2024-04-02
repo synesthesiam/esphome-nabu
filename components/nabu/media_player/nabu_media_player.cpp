@@ -1,23 +1,30 @@
 #include "nabu_media_player.h"
-#include "esphome/core/log.h"
 
 #ifdef USE_ESP_IDF
+
+#include "esphome/core/hal.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace nabu {
 
 static const char *const TAG = "nabu_media_player";
+static const size_t BUFFER_MS = 100;
+static const size_t BUFFER_SIZE = BUFFER_MS * (16000 / 1000) * sizeof(int16_t);
 
 void NabuMediaPlayer::setup() {
   state = media_player::MEDIA_PLAYER_STATE_IDLE;
 
+  ExternalRAMAllocator<uint8_t> allocator(
+      ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+  this->speaker_buffer_ = allocator.allocate(BUFFER_SIZE);
+  if (this->speaker_buffer_ == nullptr) {
+    ESP_LOGW(TAG, "Could not allocate speaker buffer");
+    this->mark_failed();
+    return;
+  }
+
   ESP_LOGI(TAG, "Set up nabu media player");
-
-  // std::string current_url_{"http://192.168.68.75:8000/Charly%20Bliss/"
-  //                          "Young%20Enough/06%20-%20Young%20Enough.mp3"};
-  // std::string current_url_{"http://192.168.68.75:8000/16Khz.mp3"};
-
-  // this->parent_->play_music(current_url_);
 }
 
 void NabuMediaPlayer::cleanup_() {
@@ -25,13 +32,15 @@ void NabuMediaPlayer::cleanup_() {
     esp_http_client_cleanup(this->client_);
     this->client_ = nullptr;
   }
+
+  this->next_buffer_time_ = 0;
+  this->is_playing_ = false;
 }
 
 void NabuMediaPlayer::set_stream_uri(const std::string &new_uri) {
   this->cleanup_();
 
   ESP_LOGD(TAG, "Opening http connection: %s", new_uri.c_str());
-  // this->current_uri_ = new_uri;
   esp_http_client_config_t config = {
       .url = new_uri.c_str(),
       .cert_pem = nullptr,
@@ -60,6 +69,10 @@ void NabuMediaPlayer::set_stream_uri(const std::string &new_uri) {
 }
 
 void NabuMediaPlayer::loop() {
+  if ((this->next_buffer_time_ > 0) && (this->next_buffer_time_ > millis())) {
+    return;
+  }
+
   if ((this->client_ != nullptr) && this->is_playing_) {
     if (esp_http_client_is_complete_data_received(this->client_)) {
       this->is_playing_ = false;
@@ -67,11 +80,11 @@ void NabuMediaPlayer::loop() {
       return;
     }
 
-    uint8_t data[640];
-    size_t bytes_read =
-        esp_http_client_read(this->client_, (char *)data, sizeof(data));
+    size_t bytes_read = esp_http_client_read(
+        this->client_, (char *)this->speaker_buffer_, BUFFER_SIZE);
     if (bytes_read > 0) {
-      this->speaker_->play(data, bytes_read);
+      this->speaker_->play(this->speaker_buffer_, bytes_read);
+      this->next_buffer_time_ = millis() + (BUFFER_MS * 0.8);
     }
   }
 }
@@ -110,21 +123,25 @@ void NabuMediaPlayer::control(const media_player::MediaPlayerCall &call) {
       state = media_player::MEDIA_PLAYER_STATE_IDLE;
       this->publish_state();
       break;
+    case media_player::MEDIA_PLAYER_COMMAND_MUTE:
+      this->is_playing_ = false;
+      break;
+    case media_player::MEDIA_PLAYER_COMMAND_UNMUTE:
+      this->is_playing_ = true;
+      break;
     default:
       break;
-      //   case media_player::MEDIA_PLAYER_COMMAND_MUTE:
-      //     break;
-      //   case media_player::MEDIA_PLAYER_COMMAND_UNMUTE:
-      //     break;
-      //   case media_player::MEDIA_PLAYER_COMMAND_TOGGLE:
-      //     if (state == media_player::MEDIA_PLAYER_STATE_PAUSED) {
-      //       this->parent_->resume_music();
-      //       state = media_player::MEDIA_PLAYER_STATE_PLAYING;
-      //     } else {
-      //       this->parent_->pause_music();
-      //       state = media_player::MEDIA_PLAYER_STATE_PAUSED;
-      //     }
-      //     break;
+    case media_player::MEDIA_PLAYER_COMMAND_TOGGLE:
+      if (state == media_player::MEDIA_PLAYER_STATE_PAUSED) {
+        this->is_playing_ = true;
+        state = media_player::MEDIA_PLAYER_STATE_PLAYING;
+        this->publish_state();
+      } else {
+        this->is_playing_ = false;
+        state = media_player::MEDIA_PLAYER_STATE_PAUSED;
+        this->publish_state();
+      }
+      break;
       //   case media_player::MEDIA_PLAYER_COMMAND_VOLUME_UP: {
       //     //       float new_volume = this->volume + 0.1f;
       //     //       if (new_volume > 1.0f)
@@ -151,22 +168,6 @@ media_player::MediaPlayerTraits NabuMediaPlayer::get_traits() {
   traits.set_supports_pause(true);
   return traits;
 };
-
-void NabuMediaPlayer::mute_() {
-  //   muted_ = true;
-  //   publish_state();
-}
-
-void NabuMediaPlayer::unmute_() {
-  //   muted_ = false;
-  //   publish_state();
-}
-
-void NabuMediaPlayer::set_volume_(float volume, bool publish) {
-  //   if (publish) {
-  //     publish_state();
-  // }
-}
 
 } // namespace nabu
 } // namespace esphome

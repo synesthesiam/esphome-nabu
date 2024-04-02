@@ -24,9 +24,6 @@ void NabuSpeaker::setup() {
 
 void NabuSpeaker::start() { this->state_ = speaker::STATE_STARTING; }
 void NabuSpeaker::start_() {
-  // if (!this->parent_->try_lock()) {
-  //   return; // Waiting for another i2s component to return lock
-  // }
   this->parent_->start_i2s();
   this->state_ = speaker::STATE_RUNNING;
 
@@ -40,54 +37,6 @@ void NabuSpeaker::player_task(void *params) {
   TaskEvent event;
   event.type = TaskEventType::STARTING;
   xQueueSend(this_speaker->event_queue_, &event, portMAX_DELAY);
-
-  //   i2s_driver_config_t config = {
-  //       .mode = (i2s_mode_t)(I2S_MODE_SLAVE | I2S_MODE_TX),
-  //       .sample_rate = 16000,
-  //       .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
-  //       .channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT,
-  //       .communication_format = I2S_COMM_FORMAT_STAND_I2S,
-  //       .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
-  //       .dma_buf_count = 8,
-  //       .dma_buf_len = 128,
-  //       .use_apll = false,
-  //       .tx_desc_auto_clear = true,
-  //       .fixed_mclk = I2S_PIN_NO_CHANGE,
-  //       .mclk_multiple = I2S_MCLK_MULTIPLE_DEFAULT,
-  //       .bits_per_chan = I2S_BITS_PER_CHAN_DEFAULT,
-  //   };
-  // #if SOC_I2S_SUPPORTS_DAC
-  //   if (this_speaker->internal_dac_mode_ != I2S_DAC_CHANNEL_DISABLE) {
-  //     config.mode = (i2s_mode_t)(config.mode | I2S_MODE_DAC_BUILT_IN);
-  //   }
-  // #endif
-
-  //   esp_err_t err = i2s_driver_install(this_speaker->parent_->get_port(),
-  //   &config,
-  //                                      0, nullptr);
-  //   if (err != ESP_OK) {
-  //     event.type = TaskEventType::WARNING;
-  //     event.err = err;
-  //     xQueueSend(this_speaker->event_queue_, &event, 0);
-  //     event.type = TaskEventType::STOPPED;
-  //     xQueueSend(this_speaker->event_queue_, &event, 0);
-  //     while (true) {
-  //       delay(10);
-  //     }
-  //   }
-
-  // #if SOC_I2S_SUPPORTS_DAC
-  //   if (this_speaker->internal_dac_mode_ == I2S_DAC_CHANNEL_DISABLE) {
-  // #endif
-  //     i2s_pin_config_t pin_config = this_speaker->parent_->get_pin_config();
-  //     pin_config.data_out_num = this_speaker->dout_pin_;
-
-  //     i2s_set_pin(this_speaker->parent_->get_port(), &pin_config);
-  // #if SOC_I2S_SUPPORTS_DAC
-  //   } else {
-  //     i2s_set_dac_mode(this_speaker->internal_dac_mode_);
-  //   }
-  // #endif
 
   DataEvent data_event;
 
@@ -137,8 +86,6 @@ void NabuSpeaker::player_task(void *params) {
   event.type = TaskEventType::STOPPING;
   xQueueSend(this_speaker->event_queue_, &event, portMAX_DELAY);
 
-  // i2s_driver_uninstall(this_speaker->parent_->get_port());
-
   event.type = TaskEventType::STOPPED;
   xQueueSend(this_speaker->event_queue_, &event, portMAX_DELAY);
 
@@ -180,7 +127,6 @@ void NabuSpeaker::watch_() {
       this->state_ = speaker::STATE_STOPPED;
       vTaskDelete(this->player_task_handle_);
       this->player_task_handle_ = nullptr;
-      // this->parent_->unlock();
       xQueueReset(this->buffer_queue_);
       ESP_LOGD(TAG, "Stopped I2S Audio Speaker");
       break;

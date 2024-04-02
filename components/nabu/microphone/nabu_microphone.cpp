@@ -45,6 +45,7 @@ void NabuMicrophone::loop() {
 }
 
 size_t NabuMicrophone::read(int16_t *buf, size_t len) {
+  // Read left channel only from 32-bit samples
   size_t num_channels = 2;
   size_t samples_wanted = len / sizeof(int32_t);
   std::vector<int32_t> samples32;
@@ -84,35 +85,6 @@ size_t NabuMicrophone::read(int16_t *buf, size_t len) {
   memcpy(buf, samples16.data(), samples16.size() * sizeof(int16_t));
   return samples16.size() * sizeof(int16_t);
 }
-
-// size_t NabuMicrophone::read(int16_t *buf, size_t len) {
-//   size_t bytes_read = 0;
-//   esp_err_t err = i2s_read(this->parent_->get_port(), buf, len, &bytes_read,
-//                            (100 / portTICK_PERIOD_MS));
-//   if (err != ESP_OK) {
-//     ESP_LOGW(TAG, "Error reading from I2S microphone: %s",
-//              esp_err_to_name(err));
-//     this->status_set_warning();
-//     return 0;
-//   }
-//   if (bytes_read == 0) {
-//     this->status_set_warning();
-//     return 0;
-//   }
-//   this->status_clear_warning();
-
-//   // Convert to 16-bit
-//   std::vector<int16_t> samples;
-//   size_t samples_read = bytes_read / sizeof(int32_t);
-//   samples.resize(samples_read);
-//   for (size_t i = 0; i < samples_read; i++) {
-//     int32_t sample = reinterpret_cast<int32_t *>(buf)[i];
-//     float sample_float = (float)sample / INT32_MAX;
-//     samples[i] = (int16_t)(sample_float * INT16_MAX);
-//   }
-//   memcpy(buf, samples.data(), samples_read * sizeof(int16_t));
-//   return samples_read * sizeof(int16_t);
-// }
 
 } // namespace nabu
 } // namespace esphome
