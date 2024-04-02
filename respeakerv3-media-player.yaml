@@ -26,9 +26,7 @@ wifi:
   password: !secret wifi_password
 
 external_components:
-  - source:
-      type: local
-      path: my_components_nabu
+  - source: github://synesthesiam/esphome-nabu
 nabu:
   i2s_lrclk_pin: GPIO7
   i2s_bclk_pin: GPIO8
